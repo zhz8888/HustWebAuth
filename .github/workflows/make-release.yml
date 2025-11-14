@@ -55,10 +55,10 @@ jobs:
         
         # List release artifacts for verification
         echo "Generated artifacts:"
-        ls -la release/
+        ls -la output/
         
         # Verify artifacts exist
-        if [ ! -d "release" ] || [ -z "$(ls -A release)" ]; then
+        if [ ! -d "output" ] || [ -z "$(ls -A output)" ]; then
           echo "Error: No release artifacts found"
           exit 1
         fi
