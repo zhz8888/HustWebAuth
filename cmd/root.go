@@ -30,6 +30,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 	"time"
 
 	daemon "github.com/sevlyar/go-daemon"
@@ -45,6 +46,9 @@ var (
 	serviceType   string   // 服务类型
 	encrypt       bool     // 密码是否加密
 	saveCfg       bool     // 是否保存配置
+	
+	// User-Agent相关变量
+	userAgent     string   // 自定义User-Agent
 	
 	// Ping相关变量
 	pingIP        string   // Ping的目标IP地址
@@ -258,7 +262,10 @@ func init() {
 	rootCmd.PersistentFlags().StringVarP(&password, "password", "p", "", "锐捷网络认证密码")
 	rootCmd.PersistentFlags().StringVarP(&serviceType, "serviceType", "s", "internet", "服务类型，选项: [internet, local]")
 	rootCmd.PersistentFlags().BoolVarP(&encrypt, "encrypt", "e", false, "密码是否加密 (默认 false)")
-
+	
+	// User-Agent配置
+	rootCmd.PersistentFlags().StringVar(&userAgent, "userAgent", "", "自定义User-Agent字符串 (默认使用内置值)")
+	
 	// Ping配置
 	rootCmd.PersistentFlags().StringVar(&pingIP, "pingIP", "202.114.0.131", "Ping的目标IP地址")
 	rootCmd.PersistentFlags().IntVar(&pingCount, "pingCount", 3, "Ping次数")
@@ -299,6 +306,7 @@ true表示发送"特权"原始ICMP ping。
 	viper.BindPFlag("auth.password", rootCmd.PersistentFlags().Lookup("password"))
 	viper.BindPFlag("auth.serviceType", rootCmd.PersistentFlags().Lookup("serviceType"))
 	viper.BindPFlag("auth.encrypt", rootCmd.PersistentFlags().Lookup("encrypt"))
+	viper.BindPFlag("auth.userAgent", rootCmd.PersistentFlags().Lookup("userAgent"))
 	viper.BindPFlag("ping.ip", rootCmd.PersistentFlags().Lookup("pingIP"))
 	viper.BindPFlag("ping.count", rootCmd.PersistentFlags().Lookup("pingCount"))
 	viper.BindPFlag("ping.timeout", rootCmd.PersistentFlags().Lookup("pingTimeout"))
@@ -357,6 +365,7 @@ func initConfig() {
 		password = viper.GetString("auth.password")
 		serviceType = viper.GetString("auth.serviceType")
 		encrypt = viper.GetBool("auth.encrypt")
+		userAgent = viper.GetString("auth.userAgent")
 		pingIP = viper.GetString("ping.ip")
 		pingCount = viper.GetInt("ping.count")
 		pingTimeout = viper.GetDuration("ping.timeout")
@@ -374,6 +383,22 @@ func initConfig() {
 		cycleDuration = viper.GetDuration("cycle.duration")
 		cycleRetry = viper.GetInt("cycle.retry")
 	}
+}
+
+// GetUserAgent 获取User-Agent字符串
+// 优先使用配置文件或命令行参数中定义的User-Agent
+// 如果未定义，则使用默认值
+func GetUserAgent() string {
+	if userAgent != "" {
+		// 验证User-Agent是否为有效字符串
+		if len(strings.TrimSpace(userAgent)) == 0 {
+			log.Println("警告: User-Agent配置为空，将使用默认值")
+		} else {
+			return userAgent
+		}
+	}
+	// 默认User-Agent
+	return "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36"
 }
 
 // saveConfig 保存配置到文件

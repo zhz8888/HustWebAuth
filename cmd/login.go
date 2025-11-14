@@ -147,7 +147,7 @@ func login(loginUrl string, queryString string, account string, password string,
 
 	// 设置请求头
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-	req.Header.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36")
+	req.Header.Add("User-Agent", GetUserAgent())
 
 	// 发送请求
 	resp, err := client.Do(req)
@@ -185,7 +185,7 @@ func RegisterMAC(loginUrl string, userIndex string, cookie *http.Cookie) (string
 
 	// 设置请求头
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-	req.Header.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36")
+	req.Header.Add("User-Agent", GetUserAgent())
 
 	// 发送请求
 	resp, err := client.Do(req)
