@@ -1,3 +1,4 @@
+// 文件遍历功能测试，基于 AdGuardHome 项目
 // https://github.com/AdguardTeam/AdGuardHome/blob/master/internal/aghos/filewalker_test.go
 
 package cmd
@@ -14,19 +15,23 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestFileWalker_Walk 测试 FileWalker 的 Walk 方法
 func TestFileWalker_Walk(t *testing.T) {
 	const attribute = `000`
 
+	// 创建文件遍历器函数
 	makeFileWalker := func(_ string) (fw FileWalker) {
 		return func(r io.Reader) (patterns []string, cont bool, err error) {
 			s := bufio.NewScanner(r)
 			for s.Scan() {
 				line := s.Text()
 				if line == attribute {
+					// 如果遇到特定属性，停止遍历
 					return nil, false, nil
 				}
 
 				if len(line) != 0 {
+					// 将非空行添加到模式列表中
 					patterns = append(patterns, path.Join(".", line))
 				}
 			}
@@ -37,6 +42,7 @@ func TestFileWalker_Walk(t *testing.T) {
 
 	const nl = "\n"
 
+	// 定义测试用例
 	testCases := []struct {
 		testFS      fstest.MapFS
 		want        assert.BoolAssertionFunc
@@ -88,6 +94,7 @@ func TestFileWalker_Walk(t *testing.T) {
 		want:        assert.True,
 	}}
 
+	// 运行所有测试用例
 	for _, tc := range testCases {
 		fw := makeFileWalker("")
 
@@ -100,6 +107,7 @@ func TestFileWalker_Walk(t *testing.T) {
 	}
 
 	t.Run("pattern_malformed", func(t *testing.T) {
+		// 测试格式错误的模式
 		f := fstest.MapFS{}
 		ok, err := makeFileWalker("").Walk(f, "[]")
 		require.Error(t, err)
@@ -109,6 +117,7 @@ func TestFileWalker_Walk(t *testing.T) {
 	})
 
 	t.Run("bad_filename", func(t *testing.T) {
+		// 测试错误的文件名
 		const filename = "bad_filename.txt"
 
 		f := fstest.MapFS{
@@ -129,6 +138,7 @@ func TestFileWalker_Walk(t *testing.T) {
 	})
 
 	t.Run("itself_error", func(t *testing.T) {
+		// 测试函数本身返回错误的情况
 		const rerr errors.Error = "returned error"
 
 		f := fstest.MapFS{

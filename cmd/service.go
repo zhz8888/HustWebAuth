@@ -1,3 +1,4 @@
+// Package cmd 提供系统服务相关功能实现
 package cmd
 
 import (
@@ -10,17 +11,21 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// program 系统服务程序结构体
 type program struct {
-	// cmd  *cobra.Command
-	// args []string
+	// cmd  *cobra.Command  // 保留字段，用于存储命令对象
+	// args []string       // 保留字段，用于存储命令参数
 }
 
+// newSVCConfig 创建新的系统服务配置
 func newSVCConfig() *service.Config {
+	// 确定是否启用日志输出
 	var logOutput = false
 	if logFile != "" {
 		logOutput = true
 	}
 
+	// 创建服务配置
 	c := &service.Config{
 		Name:        "HustWebAuth",
 		DisplayName: "HustWebAuth",
@@ -30,14 +35,14 @@ func newSVCConfig() *service.Config {
 		Option:      service.KeyValue{"LogOutput": logOutput, "LogDirectory": logDir},
 	}
 
-	// Start only once network is up on Linux/systemd.
+	// Linux/systemd系统上，仅在网络就绪后启动服务
 	if sysType == "linux" {
 		c.Dependencies = []string{
 			"After=syslog.target network.target",
 		}
 	}
 
-	// Use different scripts on OpenWrt and FreeBSD.
+	// 在OpenWrt和FreeBSD上使用不同的脚本
 	if IsOpenWrt() {
 		c.Option["SysvScript"] = openWrtScript
 	}
@@ -45,6 +50,7 @@ func newSVCConfig() *service.Config {
 	return c
 }
 
+// newSVC 创建新的系统服务实例
 func newSVC(prg *program, conf *service.Config) (service.Service, error) {
 	s, err := service.New(prg, conf)
 	if err != nil {
@@ -54,8 +60,9 @@ func newSVC(prg *program, conf *service.Config) (service.Service, error) {
 	return s, nil
 }
 
-// serviceCmd represents the service command
+// 服务相关命令定义
 var (
+	// serviceCmd 表示服务命令
 	serviceCmd = &cobra.Command{
 		Use:   "service",
 		Short: "System service related commands",
@@ -69,27 +76,30 @@ var (
 		},
 	}
 
+	// installCmd 安装服务命令
 	installCmd = &cobra.Command{
 		Use:   "install",
 		Short: "Install HustWebAuth service",
 		Run: func(cmd *cobra.Command, args []string) {
+			// 创建服务配置
 			svcConfig := newSVCConfig()
 
+			// 创建服务实例
 			s, err := newSVC(&program{}, svcConfig)
 			if err != nil {
 				log.Fatal(err)
 				return
 			}
 
+			// 安装服务
 			err = svcAction(s, "install")
 			if err != nil {
 				log.Fatal(err)
 				return
 			}
+			
+			// 在OpenWrt上，安装后必须运行enable命令，否则服务不会在系统启动时自动启动
 			if IsOpenWrt() {
-				// On OpenWrt it is important to run enable after the service
-				// installation.  Otherwise, the service won't start on the system
-				// startup.
 				_, err = runInitdCommand(s.String(), "enable")
 				if err != nil {
 					log.Fatalf("service: running init enable: %s", err)
@@ -97,6 +107,7 @@ var (
 			}
 			log.Println("HustWebAuth service has been installed")
 
+			// 启动服务
 			err = svcAction(s, "start")
 			if err != nil {
 				log.Fatal(err)
@@ -107,6 +118,7 @@ var (
 		},
 	}
 
+	// startCmd 启动服务命令
 	startCmd = &cobra.Command{
 		Use:   "start",
 		Short: "Start HustWebAuth service",
@@ -126,6 +138,7 @@ var (
 		},
 	}
 
+	// statusCmd 查询服务状态命令
 	statusCmd = &cobra.Command{
 		Use:   "status",
 		Short: "Get HustWebAuth service status",
@@ -136,11 +149,14 @@ var (
 				return
 			}
 
+			// 获取服务状态
 			status, err := svcStatus(s)
 			if err != nil {
 				log.Fatal(err)
 				return
 			}
+			
+			// 根据状态输出相应信息
 			switch status {
 			case service.StatusUnknown:
 				log.Println("HustWebAuth service status is unable to be determined due to an error or it was not installed.")
@@ -152,11 +168,11 @@ var (
 		},
 	}
 
+	// stopCmd 停止服务命令
 	stopCmd = &cobra.Command{
 		Use:   "stop",
 		Short: "Stop HustWebAuth service",
 		Run: func(cmd *cobra.Command, args []string) {
-
 			s, err := newSVC(&program{}, newSVCConfig())
 			if err != nil {
 				log.Fatal(err)
@@ -171,6 +187,7 @@ var (
 		},
 	}
 
+	// restartCmd 重启服务命令
 	restartCmd = &cobra.Command{
 		Use:   "restart",
 		Short: "Restart HustWebAuth service",
@@ -189,6 +206,7 @@ var (
 		},
 	}
 
+	// uninstallCmd 卸载服务命令
 	uninstallCmd = &cobra.Command{
 		Use:   "uninstall",
 		Short: "Uninstall HustWebAuth service from system",
@@ -199,20 +217,22 @@ var (
 				return
 			}
 
+			// 在OpenWrt上，首先运行disable命令，因为它会删除符号链接
 			if IsOpenWrt() {
-				// On OpenWrt it is important to run disable command first
-				// as it will remove the symlink
 				_, err := runInitdCommand(s.String(), "disable")
 				if err != nil {
 					log.Fatalf("service: running init disable: %s", err)
 				}
 			}
 
+			// 获取服务状态
 			status, err := svcStatus(s)
 			if err != nil {
 				log.Fatal(err)
 				return
 			}
+			
+			// 如果服务正在运行，先停止它
 			if status == service.StatusRunning {
 				err = svcAction(s, "stop")
 				if err != nil {
@@ -220,6 +240,7 @@ var (
 				}
 			}
 
+			// 卸载服务
 			err = svcAction(s, "uninstall")
 			if err != nil {
 				log.Fatal(err)
@@ -230,26 +251,27 @@ var (
 	}
 )
 
+// init 初始化函数，将服务相关命令添加到根命令
 func init() {
 	rootCmd.AddCommand(serviceCmd)
 	serviceCmd.AddCommand(installCmd, startCmd, statusCmd, stopCmd, restartCmd, uninstallCmd)
 }
 
-// runInitdCommand runs init.d service command
-// returns command code or error if any
+// runInitdCommand 运行init.d服务命令
+// 返回命令代码或错误信息
 func runInitdCommand(serviceName, action string) (int, error) {
 	confPath := "/etc/init.d/" + serviceName
-	// Pass the script and action as a single string argument.
+	// 将脚本和操作作为单个字符串参数传递
 	code, _, err := RunCommand("sh", "-c", confPath+" "+action)
 
 	return code, err
 }
 
-// svcAction performs the action on the service.
+// svcAction 执行服务操作
 //
-// On OpenWrt, the service utility may not exist.  We use our service script
-// directly in this case.
+// 在OpenWrt上，service工具可能不存在，我们直接使用服务脚本
 func svcAction(s service.Service, action string) (err error) {
+	// macOS系统上启动服务时进行特殊检查
 	if sysType == "darwin" && action == "start" {
 		var exe string
 		if exe, err = os.Executable(); err != nil {
@@ -261,7 +283,9 @@ func svcAction(s service.Service, action string) (err error) {
 		}
 	}
 
+	// 尝试执行服务操作
 	err = service.Control(s, action)
+	// 如果是unix-systemv平台且操作失败，尝试直接使用init.d脚本
 	if err != nil && service.Platform() == "unix-systemv" &&
 		(action == "start" || action == "stop" || action == "restart") {
 		_, err = runInitdCommand(s.String(), action)
@@ -272,12 +296,13 @@ func svcAction(s service.Service, action string) (err error) {
 	return err
 }
 
-// svcStatus returns the service's status.
+// svcStatus 返回服务状态
 //
-// On OpenWrt, the service utility may not exist.  We use our service script
-// directly in this case.
+// 在OpenWrt上，service工具可能不存在，我们直接使用服务脚本
 func svcStatus(s service.Service) (status service.Status, err error) {
+	// 尝试获取服务状态
 	status, err = s.Status()
+	// 如果是unix-systemv平台且获取失败，尝试直接使用init.d脚本
 	if err != nil && service.Platform() == "unix-systemv" {
 		var code int
 		code, err = runInitdCommand(s.String(), "status")
@@ -291,8 +316,8 @@ func svcStatus(s service.Service) (status service.Status, err error) {
 	return status, err
 }
 
-// OpenWrt procd init script
-// https://github.com/AdguardTeam/AdGuardHome/issues/1386
+// openWrtScript OpenWrt procd初始化脚本
+// 参考: https://github.com/AdguardTeam/AdGuardHome/issues/1386
 const openWrtScript = `#!/bin/sh /etc/rc.common
 
 START=90
