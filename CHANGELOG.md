@@ -41,7 +41,7 @@ Nothing right now.
 2. Fix typo
 3. Fix OpenWrt boot error
 
-[1.1.1]: https://github.com/a76yyyy/HustWebAuth/releases/tag/v1.1.1
+[1.1.1]: https://github.com/zhz8888/HustWebAuth/releases/tag/v1.1.1
 
 ## [1.0.0] - 2022.11.24 更新
 
@@ -59,4 +59,4 @@ Nothing right now.
 4. Update README.md.
 5. Fix typo.
 
-[1.0.0]: https://github.com/a76yyyy/HustWebAuth/releases/tag/v1.0.0
+[1.0.0]: https://github.com/zhz8888/HustWebAuth/releases/tag/v1.0.0

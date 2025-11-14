@@ -1,4 +1,4 @@
-module github.com/a76yyyy/HustWebAuth
+module github.com/zhz8888/HustWebAuth
 
 go 1.20
 
