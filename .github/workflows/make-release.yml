@@ -1,0 +1,147 @@
+name: Release Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Release tag (e.g., v1.0.0)'
+        required: true
+        default: 'v1.0.0'
+      generate_changelog:
+        description: 'Generate changelog from commits'
+        required: true
+        default: true
+        type: boolean
+
+jobs:
+
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      release_tag: ${{ steps.tag.outputs.tag }}
+      changelog: ${{ steps.changelog.outputs.changelog }}
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Fetch full history for changelog generation
+
+    - name: Get tag name
+      id: tag
+      run: |
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          echo "tag=${{ github.event.inputs.release_tag }}" >> $GITHUB_OUTPUT
+        else
+          echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version-file: 'go.mod'
+
+    - name: Download dependencies
+      run: go mod download
+
+    - name: Verify dependencies
+      run: go mod verify
+
+    - name: Build artifacts
+      id: build
+      run: |
+        echo "Starting build process..."
+        make -f Makefile.cross-compiles
+        echo "Build process completed successfully"
+        
+        # List release artifacts for verification
+        echo "Generated artifacts:"
+        ls -la release/
+        
+        # Verify artifacts exist
+        if [ ! -d "release" ] || [ -z "$(ls -A release)" ]; then
+          echo "Error: No release artifacts found"
+          exit 1
+        fi
+
+    - name: Generate changelog
+      id: changelog
+      if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.generate_changelog == 'true')
+      run: |
+        # Get the previous tag
+        PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+        
+        # If no previous tag, use the first commit
+        if [ -z "$PREV_TAG" ]; then
+          PREV_TAG=$(git rev-list --max-parents=0 HEAD)
+        fi
+        
+        CURRENT_TAG="${{ steps.tag.outputs.tag }}"
+        
+        echo "Generating changelog from $PREV_TAG to $CURRENT_TAG"
+        
+        # Generate changelog
+        CHANGELOG_CONTENT="## Changes since $PREV_TAG\n\n"
+        
+        # Get commit messages between tags
+        COMMITS=$(git log --pretty=format:"- %s (%h)" $PREV_TAG..HEAD)
+        
+        if [ -n "$COMMITS" ]; then
+          CHANGELOG_CONTENT="$CHANGELOG_CONTENT$COMMITS\n"
+        else
+          CHANGELOG_CONTENT="$CHANGELOG_CONTENT- No changes since last release\n"
+        fi
+        
+        # Save changelog to output
+        echo "changelog<<EOF" >> $GITHUB_OUTPUT
+        echo -e "$CHANGELOG_CONTENT" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+        
+        # Also save to file for debugging
+        echo -e "$CHANGELOG_CONTENT" > CHANGELOG_TEMP.md
+        echo "Changelog generated successfully"
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: ${{ steps.tag.outputs.tag }}
+        name: Release ${{ steps.tag.outputs.tag }}
+        body: |
+          ${{ steps.changelog.outputs.changelog }}
+          
+          ---
+          
+          Automated release built with GitHub Actions.
+        files: |
+          output/*
+        draft: false
+        prerelease: false
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Update global changelog
+      if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.generate_changelog == 'true')
+      run: |
+        # If CHANGELOG.md exists, append the new changes
+        if [ -f "CHANGELOG.md" ]; then
+          # Create a temporary file with the new changelog
+          echo "# Changelog" > CHANGELOG_NEW.md
+          echo "" >> CHANGELOG_NEW.md
+          echo "## [${{ steps.tag.outputs.tag }}] - $(date +'%Y-%m-%d')" >> CHANGELOG_NEW.md
+          echo "" >> CHANGELOG_NEW.md
+          echo -e "${{ steps.changelog.outputs.changelog }}" >> CHANGELOG_NEW.md
+          echo "" >> CHANGELOG_NEW.md
+          
+          # Append the existing changelog (excluding the first line which is the title)
+          tail -n +2 CHANGELOG.md >> CHANGELOG_NEW.md
+          
+          # Replace the old changelog
+          mv CHANGELOG_NEW.md CHANGELOG.md
+        else
+          # Create a new changelog file
+          echo "# Changelog" > CHANGELOG.md
+          echo "" >> CHANGELOG.md
+          echo "## [${{ steps.tag.outputs.tag }}] - $(date +'%Y-%m-%d')" >> CHANGELOG.md
+          echo "" >> CHANGELOG.md
+          echo -e "${{ steps.changelog.outputs.changelog }}" >> CHANGELOG.md
+        fi
+        
+        echo "Updated global changelog"
