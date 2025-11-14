@@ -23,7 +23,7 @@ THE SOFTWARE.
 // A program used to implement Ruijie web authentication
 package main
 
-import "github.com/a76yyyy/HustWebAuth/cmd"
+import "github.com/zhz8888/HustWebAuth/cmd"
 
 func main() {
 	cmd.Execute()

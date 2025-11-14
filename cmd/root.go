@@ -150,28 +150,63 @@ func runCycle() {
 	if cycleEnable {
 		eventsTick := time.NewTicker(cycleDuration)
 		defer eventsTick.Stop()
-		for range eventsTick.C {
-			res, err := Login()
-			if err != nil {
-				if cycleRetry < 0 {
-					log.Println("Login failed, Err: ", err)
-					log.Println("Login retrying...")
-				} else if retryCount < cycleRetry {
-					retryCount++
-					log.Println("Login failed, Err: ", err)
-					log.Println("Login retry", strconv.Itoa(retryCount), "times after", cycleDuration.String())
+		
+		// 使用通道来控制并发，避免资源竞争
+		loginChan := make(chan struct{}, 1) // 缓冲通道，防止阻塞
+		resultChan := make(chan loginResult, 1)
+		
+		// 初始触发一次登录
+		loginChan <- struct{}{}
+		
+		// 启动一个goroutine处理登录请求
+		go func() {
+			for range loginChan {
+				res, err := Login()
+				resultChan <- loginResult{res: res, err: err}
+			}
+		}()
+		
+		for {
+			select {
+			case <-eventsTick.C:
+				// 定时触发登录请求
+				select {
+				case loginChan <- struct{}{}:
+					// 成功发送登录请求
+				default:
+					// 上一次登录还在处理中，跳过这次
+					log.Println("Previous login still in progress, skipping this cycle")
+				}
+				
+			case result := <-resultChan:
+				// 处理登录结果
+				if result.err != nil {
+					if cycleRetry < 0 {
+						log.Println("Login failed, Err: ", result.err)
+						log.Println("Login retrying...")
+					} else if retryCount < cycleRetry {
+						retryCount++
+						log.Println("Login failed, Err: ", result.err)
+						log.Println("Login retry", strconv.Itoa(retryCount), "times after", cycleDuration.String())
+					} else {
+						log.Println("Login failed, Err: ", result.err)
+						log.Fatal("Exceed the maximum number of retries, daemon stopped!")
+					}
 				} else {
-					log.Println("Login failed, Err: ", err)
-					log.Fatal("Exceed the maximum number of retries, daemon stopped!")
+					if result.res != "" {
+						log.Println(result.res)
+					}
+					retryCount = 0
 				}
-			} else {
-				if res != "" {
-					log.Println(res)
-				}
-				retryCount = 0
 			}
 		}
 	}
+}
+
+// 登录结果结构体，用于在goroutine之间传递结果
+type loginResult struct {
+	res string
+	err error
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.

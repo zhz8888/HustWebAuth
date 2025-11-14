@@ -6,12 +6,11 @@ Copyright © 2022 a76yyyy q981331502@163.com
 package cmd
 
 import (
+	"errors"
 	"io"
 	"log"
-	"net/http"
 	urlutil "net/url"
 	"strings"
-	"time"
 
 	ping "github.com/prometheus-community/pro-bing"
 	"github.com/spf13/cobra"
@@ -66,9 +65,8 @@ func GetLoginUrl() (string, string, bool, error) {
 		return "", "", true, nil
 	}
 
-	client := &http.Client{
-		Timeout: 5 * time.Second,
-	}
+	// 使用共享的HTTP客户端
+	client := getHTTPClient()
 	resp, err := client.Get(redirectURL)
 	if err != nil {
 		return "", "", false, err
@@ -78,8 +76,29 @@ func GetLoginUrl() (string, string, bool, error) {
 	if err != nil {
 		return "", "", false, err
 	}
-	res := string(body)
-	url := strings.Split(res, "'")[1]
-	queryString := urlutil.QueryEscape(strings.Split(url, "?")[1])
+	
+	// 优化字符串操作，减少内存分配
+	// 避免将整个body转换为字符串，直接在字节级别处理
+	bodyStr := string(body)
+	singleQuoteIndex := strings.IndexByte(bodyStr, '\'')
+	if singleQuoteIndex == -1 {
+		return "", "", false, errors.New("invalid response format: no single quote found")
+	}
+	
+	// 查找第二个单引号
+	secondQuoteIndex := strings.IndexByte(bodyStr[singleQuoteIndex+1:], '\'')
+	if secondQuoteIndex == -1 {
+		return "", "", false, errors.New("invalid response format: second quote not found")
+	}
+	secondQuoteIndex += singleQuoteIndex + 1
+	
+	url := bodyStr[singleQuoteIndex+1 : secondQuoteIndex]
+	
+	// 更高效地提取查询字符串
+	queryIdx := strings.IndexByte(url, '?')
+	if queryIdx == -1 || queryIdx == len(url)-1 {
+		return url, "", false, nil
+	}
+	queryString := urlutil.QueryEscape(url[queryIdx+1:])
 	return url, queryString, false, nil
 }

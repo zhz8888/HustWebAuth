@@ -6,6 +6,16 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
+)
+
+// 缓存计算结果，避免重复的文件系统操作
+var (
+	tmpDirOnce sync.Once
+	tmpDirValue string
+	
+	execPathOnce sync.Once
+	execPathValue string
 )
 
 // 获取当前执行文件绝对路径
@@ -24,25 +34,32 @@ func getCurrentAbDir() string {
 
 // 获取系统临时目录，兼容go run
 func getTmpDir() string {
-	dir := os.Getenv("TEMP")
-	if dir == "" {
-		dir = os.Getenv("TMP")
+	tmpDirOnce.Do(func() {
+		dir := os.Getenv("TEMP")
 		if dir == "" {
-			dir = os.TempDir()
+			dir = os.Getenv("TMP")
+			if dir == "" {
+				dir = os.TempDir()
+			}
 		}
-	}
-	res, _ := filepath.EvalSymlinks(dir)
-	return res
+		// 使用sync.Once确保只计算一次
+		res, _ := filepath.EvalSymlinks(dir)
+		tmpDirValue = res
+	})
+	return tmpDirValue
 }
 
 // 获取当前执行文件绝对路径
 func getCurrentAbPathByExecutable() string {
-	exePath, err := os.Executable()
-	if err != nil {
-		log.Fatal(err)
-	}
-	res, _ := filepath.EvalSymlinks(exePath)
-	return res
+	execPathOnce.Do(func() {
+		exePath, err := os.Executable()
+		if err != nil {
+			log.Fatal(err)
+		}
+		res, _ := filepath.EvalSymlinks(exePath)
+		execPathValue = res
+	})
+	return execPathValue
 }
 
 // 获取当前执行文件绝对路径（go run）
