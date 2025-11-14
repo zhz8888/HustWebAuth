@@ -131,7 +131,12 @@ func login(loginUrl string, queryString string, account string, password string,
 	buf.WriteString("&password=")
 	buf.WriteString(url.QueryEscape(password))
 	buf.WriteString("&service=")
-	buf.WriteString(serviceType)
+	// 当serviceType严格等于"none"时，使用空字符串
+	if serviceType == "none" {
+		buf.WriteString("")
+	} else {
+		buf.WriteString(serviceType)
+	}
 	buf.WriteString("&queryString=")
 	buf.WriteString(url.QueryEscape(queryString))
 	buf.WriteString("&operatorPwd=&operatorUserId=&validcode=&passwordEncrypt=")
