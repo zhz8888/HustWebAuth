@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"io/fs"
 	"os/exec"
-
-	"github.com/AdguardTeam/golibs/mathutil"
 )
 
 // MaxCmdOutputSize 是执行的shell命令输出的最大长度（字节）
@@ -28,7 +26,9 @@ func RunCommand(command string, arguments ...string) (code int, output []byte, e
 	out, err := cmd.Output()
 
 	// 限制输出大小，防止过大
-	out = out[:mathutil.Min(len(out), MaxCmdOutputSize)]
+	if len(out) > MaxCmdOutputSize {
+		out = out[:MaxCmdOutputSize]
+	}
 
 	// 处理命令执行错误
 	if err != nil {

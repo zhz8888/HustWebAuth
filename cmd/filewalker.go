@@ -9,7 +9,6 @@ import (
 	"io/fs"
 
 	"github.com/AdguardTeam/golibs/errors"
-	"github.com/AdguardTeam/golibs/stringutil"
 )
 
 // FileWalker 是用于处理文件树中文件的函数签名
@@ -57,7 +56,7 @@ func checkFile(
 // srcSet 必须非空
 func handlePatterns(
 	fsys fs.FS,
-	srcSet *stringutil.Set,
+	srcSet map[string]bool,
 	patterns ...string,
 ) (sub []string, err error) {
 	sub = make([]string, 0, len(patterns))
@@ -70,11 +69,11 @@ func handlePatterns(
 		}
 
 		for _, m := range matches {
-			if srcSet.Has(m) {
+			if srcSet[m] {
 				continue
 			}
 
-			srcSet.Add(m)
+			srcSet[m] = true
 			sub = append(sub, m)
 		}
 	}
@@ -86,7 +85,7 @@ func handlePatterns(
 // 如果 fw 签名停止遍历，则只返回 true
 func (fw FileWalker) Walk(fsys fs.FS, initial ...string) (ok bool, err error) {
 	// sources 切片保持文件遍历的顺序，因为 srcSet.Values() 以未定义顺序返回字符串
-	srcSet := stringutil.NewSet()
+	srcSet := make(map[string]bool)
 	var src []string
 	src, err = handlePatterns(fsys, srcSet, initial...)
 	if err != nil {
